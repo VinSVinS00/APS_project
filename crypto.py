@@ -1,7 +1,11 @@
 import hashlib
 import secrets
+import os
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-PRIME = 2**127 - 1
+PRIME = 2**127 - 1 # numero primo molto elevato
 
 # leaves = lista di voti
 
@@ -72,7 +76,7 @@ def split_secret(secret_int, t, n):
         
     return coordinates
 
-# a^-1 mod m
+# a^-1 mod m, funzione inversa, n --> 1/n
 def _mod_inverse(a, m):
     return pow(a, m - 2, m)
 
@@ -103,3 +107,67 @@ def recover_secret(coordinates):
         secret = (secret + termine_segreto) % PRIME
         
     return secret
+
+
+def rsa_key_generation():
+    chiave_privata = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048 # bit
+    )
+    chiave_pubblica = chiave_privata.public_key()
+    return chiave_privata, chiave_pubblica
+
+
+# 1. cifratura del voto (AES-GCM)
+# 2. cifratura della chiave AES (RSA-OAEP)
+def hybrid_encrypt(voto, rsa_chiave_pubblica):
+    voto_da_cifrare = voto.encode('utf-8')
+    
+    # 1.
+    chiave_aes = AESGCM.generate_key(bit_length=256) # 256 bit
+    aes_gcm = AESGCM(chiave_aes)
+    
+    iv = os.urandom(12) # iv = byte casuali dal SO
+    
+    voto_cifrato = aes_gcm.encrypt(iv, voto_da_cifrare, None)
+
+    # 2.
+    chiave_aes_cifrata = rsa_chiave_pubblica.encrypt(
+        chiave_aes,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    
+    pacchetto_voto = {
+        "voto_cifrato": voto_cifrato,
+        "iv": iv,
+        "chiave_cifrata": chiave_aes_cifrata,
+    }
+    return pacchetto_voto
+
+# 1. decifratura della chiave AES usata per cifrare il voto originale
+# 2. decifratura del voto finale
+def hybrid_decrypt(pacchetto_voto, rsa_chiave_privata):
+
+    voto_cifrato = pacchetto_voto["voto_cifrato"]
+    iv = pacchetto_voto["iv"]
+    chiave_aes_cifrata = pacchetto_voto["chiave_cifrata"]
+    
+    # 1.
+    chiave_aes = rsa_chiave_privata.decrypt(
+        chiave_aes_cifrata,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    
+    # 2.
+    aes_gcm = AESGCM(chiave_aes)
+    voto_decifrato = aes_gcm.decrypt(iv, voto_cifrato, None)
+    
+    return voto_decifrato.decode('utf-8')
