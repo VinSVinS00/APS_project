@@ -7,10 +7,11 @@ class IdentityProvider:
     def __init__(self):
         self.chiave_privata, self.chiave_pubblica = rsa_key_generation()
         
+        #db simulato
         self.database_utenti = {
             "vincenzo_vitolo": "pwdVitolo2000",
             "davide_ruocco": "pwdRuocco2003",
-            "andrea_stramaccioni": "password1234"
+            "nome_cognome": "password1234"
         }
         
         self.already_voted_students = []
@@ -63,10 +64,9 @@ class DigitalUrna:
             )
         except Exception:
             raise SecurityError("Errore di Validazione: Il token dell'Identity Provider non è valido!")
-
-        for key in self.chiavi_effimere_usate:
-            if key == chiave_eff:
-                raise SecurityError("Attenzione!! Replay Attack rilevato!!")
+                
+        if chiave_eff in self.chiavi_effimere_usate:
+            raise SecurityError("Attenzione!! Replay Attack o Double Voting rilevato!!")
 
         self.chiavi_effimere_usate.append(chiave_eff) # voto accettato
 
@@ -82,7 +82,7 @@ class DigitalUrna:
         self.merkle_tree.leaves = self.registro_voti
         self.merkle_tree.build_tree()
         
-        indice_voto = len(self.registro_voti_stringhe) - 1
+        indice_voto = len(self.registro_voti) - 1
         merkle_proof = self.merkle_tree.get_proof(indice_voto)
         
         # ricevuta di voto che spetta al elettore
@@ -95,8 +95,31 @@ class DigitalUrna:
         return ricevuta
 
 
-# def Elettore:
-# ???
+class Elettore:
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+        self.pk_e, self.sk_e = rsa_key_generation() # chiavi effimere per la sessione di voto
+    
+    def voto(self, id_candidato, idp_instance, urna_instance, pk_commissione):
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        pk_e_bytes = self.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+
+        token_idp = idp_instance.authenticate_and_sign_key(self.username, self.password, pk_e_bytes)
+        nonce = secrets.token_hex(16)
+        timestamp = str(int(time.time()))
+        messaggio = f"{id_candidato}|{nonce}|{timestamp}".encode()
+
+        voto_cifrato = hybrid_encrypt(messaggio, pk_commissione)
+
+        transazione_tx = {
+            "chiave_effimera": pk_e_bytes,
+            "token_idp": token_idp,
+            "voto": voto_cifrato,
+        }
+
+        ricevuta = urna_instance.get_tx_vote(transazione_tx)
+        return ricevuta
 
 class SecurityError(Exception):
     pass
