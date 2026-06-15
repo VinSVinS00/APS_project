@@ -22,14 +22,17 @@ class IdentityProvider:
     # 2. check di double voter
     # 3. firma della pk effimera dello studente come Token di accesso al voto con la sk del idp
     def authenticate_and_sign_key(self, username, password, chiave_pubblica_effimera):
-
+        
+        # 1.
         if username not in self.database_utenti or self.database_utenti[username] != password:
             raise PermissionError("Accesso fallita! Username o Password errati")
         
-        for utente in self.already_voted_students:
+        # 2.
+        for utente in self.already_voted_students: # i double voter vengono sgamati sullo username
             if utente == username:
                 raise ValueError("Accesso rifiutato! Questo studente ha già votato!!")
 
+        # 3.
         idp_token = self.chiave_privata.sign(
             chiave_pubblica_effimera,
             padding.PKCS1v15(),
@@ -68,14 +71,15 @@ class DigitalUrna:
             raise SecurityError("Errore di Validazione: Il token dell'Identity Provider non è valido!")
 
         if chiave_eff in self.chiavi_effimere_usate:
-            raise SecurityError("Attenzione!! Replay Attack o Double Voting rilevato!!")
+            raise SecurityError("Attenzione!! Replay Attack / Double Voting rilevato!!")
 
         self.chiavi_effimere_usate.append(chiave_eff) # voto accettato
 
         # voto cifrato: > stringa compatta > esadecimale (.hex)
         tx_compattata = json.dumps({
             "voto_hex": voto["voto_cifrato"].hex(),
-            "chiave_aes_hex": voto["chiave_cifrata"].hex()
+            "chiave_aes_hex": voto["chiave_cifrata"].hex(),
+            "iv_hex": voto["iv"].hex()
         })
         
         self.registro_voti.append(tx_compattata)
@@ -102,22 +106,22 @@ class Elettore:
         self.password = password
         self.sk_e, self.pk_e = rsa_key_generation()
     
-    # 1. autenticazione SSO se le credenziali sono corrette
+    # 1. autentica lo studente firmando la sua key publica (generando il token di autenticazione)
     # 2. aggiunta del nonce e timestamp al voto
-    # 3. invio di tx all'urna digitale (conferma voto)
+    # 3. creazione del pacchetto voto e invio di tx all'urna digitale (conferma voto)
     def voto(self, candidato_votato, idp, urna, pk_commissione):
         # passiamo pk_e in formato DER, che la trasforma in un array di byte
         pk_e = self.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
         # 1.
-        token_idp = idp.authenticate_and_sign_key(self.username, self.password, pk_e)
+        token_idp = idp.authenticate_and_sign_key(self.username, self.password, pk_e) 
         
         # 2.
         nonce = secrets.token_hex(16)
         timestamp = str(int(time.time()))
-        msg_timestamp = f"{candidato_votato}|{nonce}|{timestamp}"
+        voto_sicuro = f"{candidato_votato}|{nonce}|{timestamp}"
 
-        voto_cifrato = hybrid_encrypt(msg_timestamp, pk_commissione)
+        voto_cifrato = hybrid_encrypt(voto_sicuro, pk_commissione)
 
         # 3.
         transazione_tx = {

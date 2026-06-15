@@ -1,5 +1,6 @@
 import secrets
-from crypto import rsa_key_generation, split_secret, recover_secret, hybrid_encrypt
+import json
+from crypto import rsa_key_generation, split_secret, recover_secret, hybrid_encrypt, hybrid_decrypt
 from actors import IdentityProvider, DigitalUrna, Elettore, SecurityError
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
@@ -8,7 +9,7 @@ def main():
 
     print("[1] CONFIGURAZIONE COMMISSIONE")
 
-    _, pk_commissione = rsa_key_generation() # sk nascosta, pk utile per validare le votazioni degli studenti
+    sk_commissione, pk_commissione = rsa_key_generation() # sk nascosta, pk utile per validare le votazioni degli studenti
     
     segreto_scrutinio = secrets.randbelow(2**128) # la chiave di scrutinio, verrà frammentato in n parti (n = membri della commissione)
     n_membri = 5
@@ -30,13 +31,14 @@ def main():
         ("paolo_vitale", "pwdVitale2002", "Terranova")
     ]
 
-    for user, pwd, voto in studenti:
+    for user, password, voto in studenti:
         print(f"\nLo studente '{user}' esprime il voto...")
-        client = Elettore(user, pwd)
+        client = Elettore(user, password)
         ricevuta = client.voto(voto, idp, urna, pk_commissione)
+        # controllo sul voto per accettare la scheda elettorale, ad esempio che sia nella lista dei candidati o che sia semanticamente corretto
         print(f"Voto accettato! Indice: {ricevuta['index']}, merkle root: {ricevuta['merkle_root_corrente'][:10]}")
 
-    print("\n[4] FASE DI ATTACCO AL SISTEMA)")
+    print("\n[4] FASE DI ATTACCO AL SISTEMA")
 
     print("\nVincenzo prova a rivotare (double-voting)...")
     try:
@@ -46,12 +48,12 @@ def main():
 
     print("\nVotazione con Token idp falso...")
     try:
-        studente_finto = Elettore("paolo_vitale", "pwdVitale2002")
-        pk_falsa = studente_finto.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-        urna.get_tx_vote({
+        double_voter = Elettore("paolo_vitale", "pwdVitale2002")
+        pk_falsa = double_voter.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+        urna.get_tx_vote({ # per generare un token fasullo
             "chiave_effimera": pk_falsa,
             "token_idp": b"firma_falsa",
-            "voto": hybrid_encrypt("Terranova", pk_commissione)
+            "voto": hybrid_encrypt("Terranova", pk_commissione) 
         })
     except SecurityError as e:
         print(f"{e}")
@@ -61,15 +63,34 @@ def main():
     urna.registro_voti[0] = urna.registro_voti[0].replace("voto_hex", "hacker")
     urna.merkle_tree.leaves = urna.registro_voti
     urna.merkle_tree.build_tree()
+
     if root_valida != urna.merkle_tree.get_root():
-        print(f"Manomissione rilevata! Root cambiata: {urna.merkle_tree.get_root()[:10]}...")
+        print(f"Manomissione rilevata! Root cambiata!!")
+        print(f"merkle root originale: {root_valida[:10]}")
+        print(f"merkle root attuale: {urna.merkle_tree.get_root()[:10]}")
     urna.registro_voti[0] = urna.registro_voti[0].replace("hacker", "voto_hex")
     urna.merkle_tree.build_tree()
 
     print("\n[5] CHIUSURA ELEZIONI E SCRUTINIO FINALE")
     
     segreto_ricostruito = recover_secret(frammenti[:3])
-    print(f"Numero di parti sufficiente per la ricostruzione! Segreto: {segreto_ricostruito == segreto_scrutinio}")
+    if(segreto_scrutinio == segreto_ricostruito):
+        print("Chiave di scrutinio ricostruito con successo")
+    else:
+        print("Impossibile ricostruire la chiave di scrutinio\n")
 
+    print("tutte le votazioni:")
+    for i, tx in enumerate(urna.registro_voti):
+        voti = json.loads(tx)
+        pacchetto = {
+            "voto_cifrato": bytes.fromhex(voti["voto_hex"]),
+            "chiave_cifrata": bytes.fromhex(voti["chiave_aes_hex"]),
+            "iv": bytes.fromhex(voti["iv_hex"])
+        }
+        voto_chiaro = hybrid_decrypt(pacchetto, sk_commissione)
+        candidato = voto_chiaro.split('|')[0]
+        print(f"voto {i} - {candidato}")
+    
+    
 if __name__ == "__main__":
     main()

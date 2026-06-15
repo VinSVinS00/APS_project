@@ -5,7 +5,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-PRIME = 2**127 - 1 # numero primo molto elevato
+#PRIME = 2**127 - 1 # numero primo molto elevato
+PRIME = 0xfffffffffffffffffffffffffffffffeffffffffffffffff # numero a 192 bit, PRIME > 2^128
 
 # leaves = lista di voti
 
