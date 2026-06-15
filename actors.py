@@ -1,7 +1,10 @@
 import json
+import secrets
+import time
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from crypto import rsa_key_generation, hybrid_encrypt, MerkleTree
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 class IdentityProvider:
     def __init__(self):
@@ -10,7 +13,7 @@ class IdentityProvider:
         self.database_utenti = {
             "vincenzo_vitolo": "pwdVitolo2000",
             "davide_ruocco": "pwdRuocco2003",
-            "andrea_stramaccioni": "password1234"
+            "paolo_vitale": "pwdVitale2002"
         }
         
         self.already_voted_students = []
@@ -38,8 +41,8 @@ class IdentityProvider:
 
 
 class DigitalUrna:
-    def __init__(self, idp_token):
-        self.idp_token = idp_token
+    def __init__(self, idp_pk):
+        self.idp_pk = idp_pk
         self.registro_voti = [] # formato JSON, è il log delle foglie del merkle tree
         self.merkle_tree = MerkleTree()
         self.chiavi_effimere_usate = []
@@ -55,7 +58,7 @@ class DigitalUrna:
         voto = transazione["voto"]
 
         try:
-            self.idp_token.verify(
+            self.idp_pk.verify(
                 token_idp,
                 chiave_eff,
                 padding.PKCS1v15(),
@@ -64,9 +67,8 @@ class DigitalUrna:
         except Exception:
             raise SecurityError("Errore di Validazione: Il token dell'Identity Provider non è valido!")
 
-        for key in self.chiavi_effimere_usate:
-            if key == chiave_eff:
-                raise SecurityError("Attenzione!! Replay Attack rilevato!!")
+        if chiave_eff in self.chiavi_effimere_usate:
+            raise SecurityError("Attenzione!! Replay Attack o Double Voting rilevato!!")
 
         self.chiavi_effimere_usate.append(chiave_eff) # voto accettato
 
@@ -94,8 +96,38 @@ class DigitalUrna:
         return ricevuta
 
 
-# def Elettore:
-# ???
+class Elettore:
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+        self.sk_e, self.pk_e = rsa_key_generation()
+    
+    # 1. autenticazione SSO
+    # 2. aggiunta del nonce e timestamp al voto
+    # 3. invio di tx all'urna digitale (conferma voto)
+    def voto(self, id_candidato, idp, urna, pk_commissione):
+        # passiamo pk_e in formato DER, che la trasforma in un array di byte
+        pk_e = self.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+
+        # 1.
+        token_idp = idp.authenticate_and_sign_key(self.username, self.password, pk_e)
+        
+        # 2.
+        nonce = secrets.token_hex(16)
+        timestamp = str(int(time.time())) # stringa
+        msg = f"{id_candidato}|{nonce}|{timestamp}"
+
+        voto_cifrato = hybrid_encrypt(msg, pk_commissione)
+
+        # 3.
+        transazione_tx = {
+            "chiave_effimera": pk_e,
+            "token_idp": token_idp,
+            "voto": voto_cifrato,
+        }
+        ricevuta = urna.get_tx_vote(transazione_tx)
+
+        return ricevuta
 
 class SecurityError(Exception):
     pass
