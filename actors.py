@@ -58,7 +58,7 @@ class DigitalUrna:
         voto = transazione["voto"]
 
         try:
-            self.idp_pk.verify(
+            self.idp_pk.verify( # verifica che l'idp sia valido e non inventato (Vrfy)
                 token_idp,
                 chiave_eff,
                 padding.PKCS1v15(),
@@ -102,10 +102,10 @@ class Elettore:
         self.password = password
         self.sk_e, self.pk_e = rsa_key_generation()
     
-    # 1. autenticazione SSO
+    # 1. autenticazione SSO se le credenziali sono corrette
     # 2. aggiunta del nonce e timestamp al voto
     # 3. invio di tx all'urna digitale (conferma voto)
-    def voto(self, id_candidato, idp, urna, pk_commissione):
+    def voto(self, candidato_votato, idp, urna, pk_commissione):
         # passiamo pk_e in formato DER, che la trasforma in un array di byte
         pk_e = self.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
@@ -114,10 +114,10 @@ class Elettore:
         
         # 2.
         nonce = secrets.token_hex(16)
-        timestamp = str(int(time.time())) # stringa
-        msg = f"{id_candidato}|{nonce}|{timestamp}"
+        timestamp = str(int(time.time()))
+        msg_timestamp = f"{candidato_votato}|{nonce}|{timestamp}"
 
-        voto_cifrato = hybrid_encrypt(msg, pk_commissione)
+        voto_cifrato = hybrid_encrypt(msg_timestamp, pk_commissione)
 
         # 3.
         transazione_tx = {
