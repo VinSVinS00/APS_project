@@ -49,6 +49,22 @@ class MerkleTree:
     def get_root(self) -> str:
         return self.tree[-1][0] if self.tree else ""
     
+    # scorre il merkle tree per trovare la ricevuta (proof) del voto dello studente (studente = merkletree[index])
+    def get_proof(self, index):
+        proof = []
+        for layer in self.tree[:-1]:
+            if index % 2 == 0:
+                sibling_index = index + 1 # elemento successivo = fratello
+                if sibling_index >= len(layer): # se stesso = fratello
+                    sibling_index = index
+            else:
+                sibling_index = index - 1 # elemento precedente = fratello
+            
+            proof.append(layer[sibling_index])
+            index = index // 2  # next layer
+
+        return proof
+    
 # divisione del segreto in n frammenti, ne servono t per ricostruirlo (SHAMIR)
 # geometricamente, è una figura con coefficienti an,a2,a1,a0 ed incognite xn,x2,x1 con a0 = termine noto = segreto
 def split_secret(secret_int, t, n):
