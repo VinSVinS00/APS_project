@@ -17,7 +17,7 @@ class IdentityProvider:
 
     # 1. check delle credenziali
     # 2. check di double voter
-    # 3. firma della pk effimera dello studente come Token di accesso al voto
+    # 3. firma della pk effimera dello studente come Token di accesso al voto con la sk del idp
     def authenticate_and_sign_key(self, username, password, chiave_pubblica_effimera):
 
         if username not in self.database_utenti or self.database_utenti[username] != password:
@@ -38,8 +38,8 @@ class IdentityProvider:
 
 
 class DigitalUrna:
-    def __init__(self, idp_chiave_pubblica):
-        self.idp_chiave_pubblica = idp_chiave_pubblica
+    def __init__(self, idp_token):
+        self.idp_token = idp_token
         self.registro_voti = [] # formato JSON, è il log delle foglie del merkle tree
         self.merkle_tree = MerkleTree()
         self.chiavi_effimere_usate = []
@@ -55,7 +55,7 @@ class DigitalUrna:
         voto = transazione["voto"]
 
         try:
-            self.idp_chiave_pubblica.verify(
+            self.idp_token.verify(
                 token_idp,
                 chiave_eff,
                 padding.PKCS1v15(),
@@ -78,14 +78,13 @@ class DigitalUrna:
         
         self.registro_voti.append(tx_compattata)
         
-        # update del merkle tree
+        # update dei voti e della merkle root nel merkle tree
         self.merkle_tree.leaves = self.registro_voti
         self.merkle_tree.build_tree()
         
-        indice_voto = len(self.registro_voti_stringhe) - 1
-        merkle_proof = self.merkle_tree.get_proof(indice_voto)
-        
         # ricevuta di voto che spetta al elettore
+        indice_voto = len(self.registro_voti) - 1
+        merkle_proof = self.merkle_tree.get_proof(indice_voto)
         ricevuta = {
             "status": "VOTO_ACCETTATO",
             "index": indice_voto,
