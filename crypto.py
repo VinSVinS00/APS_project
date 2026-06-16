@@ -188,3 +188,29 @@ def hybrid_decrypt(pacchetto_voto, rsa_chiave_privata):
     voto_decifrato = aes_gcm.decrypt(iv, voto_cifrato, None)
     
     return voto_decifrato.decode('utf-8')
+
+def encrypt_private_key(private_key_bytes, aes_key):
+    aes = AESGCM(aes_key)
+    iv = os.urandom(12)
+
+    # la chiave da cifrare è la sk_commissione, appositamente trasformata in una serie di byte (per AES)
+    private_key_encrypted = aes.encrypt(
+        iv,
+        private_key_bytes,
+        None
+    )
+
+    return {
+        "ciphertext": private_key_encrypted,
+        "iv": iv
+    }
+
+
+def decrypt_private_key(ciphertext, iv, aes_key):
+    aes = AESGCM(aes_key)
+
+    return aes.decrypt(
+        iv,
+        ciphertext,
+        None
+    )
