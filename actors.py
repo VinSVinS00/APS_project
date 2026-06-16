@@ -111,6 +111,7 @@ class Elettore:
     # 3. creazione del pacchetto voto e invio di tx all'urna digitale (conferma voto)
     def voto(self, candidato_votato, idp, urna, pk_commissione):
         # passiamo pk_e in formato DER, che la trasforma in un array di byte
+        # è come una serializzazione del dato, utile per l'invio su rete verso l'idp
         pk_e = self.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
         # 1.

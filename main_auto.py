@@ -58,6 +58,29 @@ def main():
     except SecurityError as e:
         print(f"{e}")
 
+    print("\nIntercettazione Man-in-the-Middle...")
+    try:
+        man_in_the_middle = Elettore("davide_ruocco", "pwdRuocco2003")
+        pk_e = man_in_the_middle.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+        
+        token_idp = idp.authenticate_and_sign_key("davide_ruocco", "pwdRuocco2003", pk_e)
+        voto_cifrato_legittimo = hybrid_encrypt("Cupo", pk_commissione)
+        
+        # pacchetto voto
+        transazione_intercettata = {
+            "chiave_effimera": pk_e,
+            "token_idp": token_idp,
+            "voto": voto_cifrato_legittimo
+        }
+
+        voto_manomesso= hybrid_encrypt("Terranova", pk_commissione)
+        transazione_intercettata["voto"] = voto_manomesso
+        
+        urna.get_tx_vote(transazione_intercettata)
+        print("Il sistema ha fallito!! L'Urna ha accettato una transazione modificata in transito!")
+    except (SecurityError, Exception) as e:
+        print(f"Intercettazione bloccata!! La transazione alterata viola i vincoli crittografici")
+
     print("\nManomissione DB (Gestore Malevolo)...")
     root_valida = urna.merkle_tree.get_root()
     urna.registro_voti[0] = urna.registro_voti[0].replace("voto_hex", "hacker")
