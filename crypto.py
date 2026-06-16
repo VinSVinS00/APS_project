@@ -5,7 +5,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-PRIME = 2**127 - 1 # numero primo molto elevato
+#PRIME = 2**127 - 1 # numero primo molto elevato
+PRIME = 0xfffffffffffffffffffffffffffffffeffffffffffffffff # numero a 192 bit, PRIME > 2^128
 
 # leaves = lista di voti
 
@@ -48,6 +49,22 @@ class MerkleTree:
 
     def get_root(self) -> str:
         return self.tree[-1][0] if self.tree else ""
+    
+    # scorre il merkle tree per trovare la ricevuta (proof) del voto dello studente (studente = merkletree[index])
+    def get_proof(self, index):
+        proof = []
+        for layer in self.tree[:-1]:
+            if index % 2 == 0:
+                sibling_index = index + 1 # elemento successivo = fratello
+                if sibling_index >= len(layer): # se stesso = fratello
+                    sibling_index = index
+            else:
+                sibling_index = index - 1 # elemento precedente = fratello
+            
+            proof.append(layer[sibling_index])
+            index = index // 2  # next layer
+
+        return proof
     
 
     def get_proof(self, index):
@@ -191,3 +208,29 @@ def hybrid_decrypt(pacchetto_voto, rsa_chiave_privata):
     voto_decifrato = aes_gcm.decrypt(iv, voto_cifrato, None)
     
     return voto_decifrato.decode('utf-8')
+
+def encrypt_private_key(private_key_bytes, aes_key):
+    aes = AESGCM(aes_key)
+    iv = os.urandom(12)
+
+    # la chiave da cifrare è la sk_commissione, appositamente trasformata in una serie di byte (per AES)
+    private_key_encrypted = aes.encrypt(
+        iv,
+        private_key_bytes,
+        None
+    )
+
+    return {
+        "ciphertext": private_key_encrypted,
+        "iv": iv
+    }
+
+
+def decrypt_private_key(ciphertext, iv, aes_key):
+    aes = AESGCM(aes_key)
+
+    return aes.decrypt(
+        iv,
+        ciphertext,
+        None
+    )
