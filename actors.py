@@ -11,9 +11,9 @@ class IdentityProvider:
         self.chiave_privata, self.chiave_pubblica = rsa_key_generation()
         
         self.database_utenti = {
-            "vincenzo_vitolo": "pwdVitolo2000",
-            "davide_ruocco": "pwdRuocco2003",
-            "paolo_vitale": "pwdVitale2002"
+            "vincenzo_vitolo": "vv",
+            "davide_ruocco": "dr",
+            "paolo_vitale": "pv"
         }
         
         self.already_voted_students = []

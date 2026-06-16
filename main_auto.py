@@ -55,9 +55,9 @@ print("Identity Provider e Urna correttamente attivi!\n")
 
 print("[3] APERTURA SEGGIO")
 studenti = [
-    ("vincenzo_vitolo", "pwdVitolo2000", "Terranova"),
-    ("davide_ruocco", "pwdRuocco2003", "Cupo"),
-    ("paolo_vitale", "pwdVitale2002", "Terranova")
+    ("vincenzo_vitolo", "vv", "Terranova"),
+    ("davide_ruocco", "dr", "Cupo"),
+    ("paolo_vitale", "pv", "Terranova")
 ]
 
 for user, password, voto in studenti:
@@ -71,13 +71,13 @@ print("\n[4] FASE DI ATTACCO AL SISTEMA")
 
 print("\nVincenzo prova a rivotare (double-voting)...")
 try:
-    Elettore("vincenzo_vitolo", "pwdVitolo2000").voto("Terranova", idp, urna, pk_commissione)
+    Elettore("vincenzo_vitolo", "vv").voto("Terranova", idp, urna, pk_commissione)
 except ValueError as e:
     print(f"{e}")
 
 print("\nVotazione con Token idp falso...")
 try:
-    double_voter = Elettore("paolo_vitale", "pwdVitale2002")
+    double_voter = Elettore("paolo_vitale", "pv")
     pk_falsa = double_voter.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     urna.get_tx_vote({ # per generare un token fasullo
         "chiave_effimera": pk_falsa,
@@ -89,10 +89,10 @@ except SecurityError as e:
 
 print("\nIntercettazione Man-in-the-Middle...")
 try:
-    man_in_the_middle = Elettore("davide_ruocco", "pwdRuocco2003")
+    man_in_the_middle = Elettore("davide_ruocco", "dr")
     pk_e = man_in_the_middle.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     
-    token_idp = idp.authenticate_and_sign_key("davide_ruocco", "pwdRuocco2003", pk_e)
+    token_idp = idp.authenticate_and_sign_key("davide_ruocco", "dr", pk_e)
     voto_cifrato_legittimo = hybrid_encrypt("Cupo", pk_commissione)
     
     # pacchetto voto
