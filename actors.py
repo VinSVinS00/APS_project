@@ -1,4 +1,6 @@
 import json
+import time
+import secrets
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from crypto import rsa_key_generation, hybrid_encrypt, MerkleTree
@@ -99,7 +101,7 @@ class Elettore:
     def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.pk_e, self.sk_e = rsa_key_generation() # chiavi effimere per la sessione di voto
+        self.sk_e, self.pk_e = rsa_key_generation() # chiavi effimere per la sessione di voto
     
     def voto(self, id_candidato, idp_instance, urna_instance, pk_commissione):
         from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
