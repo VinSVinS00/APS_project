@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from crypto import rsa_key_generation, hybrid_encrypt, MerkleTree
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import load_der_public_key
 
 class IdentityProvider:
     def __init__(self):
@@ -57,19 +58,31 @@ class DigitalUrna:
     def get_tx_vote(self, transazione):
 
         # pacchetto voto
+        voto_json_str = transazione["voto_json_str"]
         chiave_eff = transazione["chiave_effimera"]
         token_idp = transazione["token_idp"]
-        voto = transazione["voto"]
+        sigma_elettore = transazione["sigma_elettore"]
 
         try:
-            self.idp_pk.verify( # verifica che l'idp sia valido e non inventato (Vrfy)
+            pk_e_oggetto = load_der_public_key(chiave_eff)
+            pk_e_oggetto.verify(
+                sigma_elettore,
+                voto_json_str.encode("utf-8"),
+                padding.PKCS1v15(),
+                hashes.SHA256()
+            )
+        except Exception:
+            raise SecurityError("Errore di Validazione: Firma dell'Elettore non valida!")
+        
+        try:
+            self.idp_pk.verify(
                 token_idp,
                 chiave_eff,
                 padding.PKCS1v15(),
                 hashes.SHA256()
             )
         except Exception:
-            raise SecurityError("Errore di Validazione: Il token dell'Identity Provider non è valido!")
+            raise SecurityError("Errore di Validazione: Il token dell'Identity Provider non è autentico!")
 
         if chiave_eff in self.chiavi_effimere_usate:
             raise SecurityError("Attenzione!! Replay Attack / Double Voting rilevato!!")
@@ -77,16 +90,16 @@ class DigitalUrna:
         self.chiavi_effimere_usate.append(chiave_eff) # voto accettato
 
         # voto cifrato: > stringa compatta > esadecimale (.hex)
-        tx_compattata = json.dumps({
-            "voto_hex": voto["voto_cifrato"].hex(),
-            "chiave_aes_hex": voto["chiave_cifrata"].hex(),
-            "iv_hex": voto["iv"].hex()
-        })
-        
-        self.registro_voti.append(tx_compattata)
+        tx_archiviata = {
+            "voto_json_str": voto_json_str,
+            "chiave_effimera_hex": chiave_eff.hex(),
+            "token_idp_hex": token_idp.hex(),
+            "sigma_elettore_hex": sigma_elettore.hex()
+        }
+        self.registro_voti.append(tx_archiviata) 
         
         # update dei voti e della merkle root nel merkle tree
-        self.merkle_tree.leaves = self.registro_voti
+        self.merkle_tree.leaves = [json.dumps(tx) for tx in self.registro_voti]
         self.merkle_tree.build_tree()
         
         # ricevuta di voto che spetta al elettore
@@ -125,11 +138,24 @@ class Elettore:
 
         voto_cifrato = hybrid_encrypt(voto_sicuro, pk_commissione)
 
+        voto_json_str = json.dumps({
+            "voto_hex": voto_cifrato["voto_cifrato"].hex(),
+            "chiave_aes_hex": voto_cifrato["chiave_cifrata"].hex(),
+            "iv_hex": voto_cifrato["iv"].hex()
+        })
+
         # 3.
+        sigma_elettore = self.sk_e.sign(
+            voto_json_str.encode("utf-8"),
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
+
         transazione_tx = {
+            "voto_json_str": voto_json_str,
             "chiave_effimera": pk_e,
             "token_idp": token_idp,
-            "voto": voto_cifrato,
+            "sigma_elettore": sigma_elettore
         }
         ricevuta = urna.get_tx_vote(transazione_tx)
 

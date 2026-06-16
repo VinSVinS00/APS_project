@@ -123,9 +123,10 @@ def benchmark_voto(N: int, ctx) -> List[VoteMetric]:
         tx_tot_len = tx_pk_len + tx_token_len + tx_voto_len
 
         tx_payload = {
+            "voto_json_str": voto_str,
             "chiave_effimera": pk_e_der,
             "token_idp": token_idp,
-            "voto": voto_cifrato,
+            "sigma_elettore": firma_elettore
         }
         t = now_ns()
         ricevuta = urna.get_tx_vote(tx_payload)
@@ -169,8 +170,8 @@ def benchmark_scrutinio(ctx, N: int) -> ScrutinioMetric:
     sk_comm = load_der_private_key(sk_bytes_ric, password=None)
 
     t_per_voto = []
-    for tx_str in urna.registro_voti:
-        v = json.loads(tx_str)
+    for tx_dict in urna.registro_voti:
+        v = json.loads(tx_dict["voto_json_str"])
         pacchetto = {
             "voto_cifrato": bytes.fromhex(v["voto_hex"]),
             "chiave_cifrata": bytes.fromhex(v["chiave_aes_hex"]),
