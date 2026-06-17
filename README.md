@@ -1,4 +1,4 @@
-# APS_project | Gruppo 27 | Vincenzo Vitlo & Davide Ruocco
+# APS_project | Gruppo 27 | Vincenzo Vitolo & Davide Ruocco
 
 ## Istruzioni per un'esecuzione corretta
 Per avviare la simulazione del sistema eseguire il file main_manual.py  
