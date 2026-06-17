@@ -17,7 +17,10 @@ lista_candidati = {
 
 print("candidati alle elezioni:")
 for c in lista_candidati:
-    print(c)
+    print(f"- {c}")
+
+print("\nVERRANNO PRESI IN CONSIDERAZIONE SOLAMENTE I VOTI ESPRESSI CON IL COGNOME DEL CANDIDATO TRA QUELLI ELENCATI NEI MODI DESCRITTI")
+print("QUALSIASI ALTRA SEMANTICA DEL VOTO NON VERRÀ TENUTA IN CONSIDERAZIONE IN FASE DI SCRUTINIO")
 
 print("\n[1] CONFIGURAZIONE COMMISSIONE")
 sk_commissione, pk_commissione = rsa_key_generation()
@@ -189,7 +192,11 @@ if ask_attack == 0:
 
 print("\n[5] CHIUSURA ELEZIONI E SCRUTINIO FINALE")
 
-n_frammenti_disp = int(input("quanti membri del consiglio sono disponibili per ricostruire la chiave? "))
+try:
+    n_frammenti_disp = int(input("quanti membri del consiglio sono disponibili per ricostruire la chiave? "))
+except:
+    print("il numerro di frammenti deve essere un intero!")
+    sys.exit()
 segreto_ricostruito = recover_secret(frammenti[:n_frammenti_disp])
 if(segreto_scrutinio == segreto_ricostruito):
     print("Chiave di scrutinio ricostruito con successo")
@@ -227,13 +234,19 @@ for i, tx in enumerate(urna.registro_voti):
 
 # da fixare la stampa del vincitore
 voto_massimo = max(lista_candidati.values())
-vincitore_votazioni = [nome for nome, voti in lista_candidati.items() if voti == voto_massimo]
 
-if len(vincitore_votazioni) == 0:
-    print("nessun vincitore! nessun voto valido espresso")
-elif len(vincitore_votazioni) == 1:
-    print(f"VINCITORE ELEZIONI: {vincitore_votazioni[0]}")
+if voto_massimo == 0:
+    print("Nessun vincitore! Nessun voto valido è stato espresso")
 else:
-    print(f"PAREGGIO! I VINCITORI SONO: ")
-    for vincitore in vincitore_votazioni:
-        print(vincitore)
+    vincitore_votazioni = [
+        nome for nome, voti in lista_candidati.items()
+        if voti == voto_massimo
+    ]
+
+    if len(vincitore_votazioni) == 1:
+        print(f"VINCITORE ELEZIONI: {vincitore_votazioni[0]} con ({voto_massimo} voti)")
+    else:
+        print(f"PAREGGIO")
+        print("Vincitori:")
+        for vincitore in vincitore_votazioni:
+            print(f"- {vincitore} con {voto_massimo} voti")
