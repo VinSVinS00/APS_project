@@ -15,8 +15,8 @@ class IdentityProvider:
             "vincenzo_vitolo": "vv",
             "davide_ruocco": "dr",
             "paolo_vitale": "pv",
-            "mario_manganiello": "mm",
-            "bruno_castellano": "bc"
+            "francesco_cauteruccio": "fc",
+            "carlo_mazzocca": "cm"
         }
         
         self.already_voted_students = []

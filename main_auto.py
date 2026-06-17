@@ -1,3 +1,4 @@
+import os
 import secrets
 import json
 from crypto import rsa_key_generation, split_secret, recover_secret, hybrid_encrypt, hybrid_decrypt, encrypt_private_key, decrypt_private_key
@@ -79,13 +80,22 @@ print("\nVotazione con Token idp falso...")
 try:
     double_voter = Elettore("paolo_vitale", "pv")
     pk_falsa = double_voter.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-    urna.get_tx_vote({ # per generare un token fasullo
+    
+    voto_cifrato = hybrid_encrypt("Terranova", pk_commissione)
+    voto_json_str = json.dumps({
+        "voto_hex": voto_cifrato["voto_cifrato"].hex(),
+        "chiave_aes_hex": voto_cifrato["chiave_cifrata"].hex(),
+        "iv_hex": voto_cifrato["iv"].hex()
+    })
+    
+    urna.get_tx_vote({
+        "voto_json_str": voto_json_str,
         "chiave_effimera": pk_falsa,
         "token_idp": b"firma_falsa",
-        "voto": hybrid_encrypt("Terranova", pk_commissione) 
+        "sigma_elettore": os.urandom(256) 
     })
 except SecurityError as e:
-    print(f"{e}")
+    print(f"Attacco correttamente bloccato: {e}")
 
 print("\nIntercettazione Man-in-the-Middle...")
 try:
@@ -111,17 +121,25 @@ except (SecurityError, Exception) as e:
     print(f"Intercettazione bloccata!! La transazione alterata viola i vincoli crittografici")
 
 print("\nManomissione DB (Gestore Malevolo)...")
-root_valida = urna.merkle_tree.get_root()
-urna.registro_voti[0] = urna.registro_voti[0].replace("voto_hex", "hacker")
-urna.merkle_tree.leaves = urna.registro_voti
-urna.merkle_tree.build_tree()
+if len(urna.registro_voti) > 0:
+    root_valida = urna.merkle_tree.get_root()
+    originale = urna.registro_voti[0]["voto_json_str"]
+    
+    urna.registro_voti[0]["voto_json_str"] = originale.replace("voto_hex", "hacker")
+    
+    urna.merkle_tree.leaves = [json.dumps(tx) for tx in urna.registro_voti]
+    urna.merkle_tree.build_tree()
 
-if root_valida != urna.merkle_tree.get_root():
-    print(f"Manomissione rilevata! Root cambiata!!")
-    print(f"merkle root originale: {root_valida[:10]}")
-    print(f"merkle root attuale: {urna.merkle_tree.get_root()[:10]}")
-urna.registro_voti[0] = urna.registro_voti[0].replace("hacker", "voto_hex")
-urna.merkle_tree.build_tree()
+    if root_valida != urna.merkle_tree.get_root():
+        print(f"Manomissione rilevata! Root cambiata!!")
+        print(f"Root originale: {root_valida[:10]}")
+        print(f"Root attuale: {urna.merkle_tree.get_root()[:10]}")
+    
+    urna.registro_voti[0]["voto_json_str"] = originale
+    urna.merkle_tree.leaves = [json.dumps(tx) for tx in urna.registro_voti]
+    urna.merkle_tree.build_tree()
+else:
+    print("Nessun voto nel registro!")
 
 print("\n[5] CHIUSURA ELEZIONI E SCRUTINIO FINALE")
 
@@ -149,9 +167,11 @@ sk_commissione = load_der_private_key(
     password=None
 )
 
-print("tutte le votazioni:")
+print("\ntutte le votazioni:")
 for i, tx in enumerate(urna.registro_voti):
-    voti = json.loads(tx)
+    pacchetto_json_str = tx["voto_json_str"]
+    voti = json.loads(pacchetto_json_str)
+    
     pacchetto = {
         "voto_cifrato": bytes.fromhex(voti["voto_hex"]),
         "chiave_cifrata": bytes.fromhex(voti["chiave_aes_hex"]),
