@@ -66,6 +66,23 @@ class MerkleTree:
 
         return proof
     
+
+    def get_proof(self, index):
+        proof = []
+        for layer in self.tree[:-1]:
+            if index % 2 == 0:
+                sibling_index = index + 1 # elemento successivo = fratello
+                if sibling_index >= len(layer): # se stesso = fratello
+                    sibling_index = index
+            else:
+                sibling_index = index - 1 # elemento precedente = fratello
+            
+            proof.append(layer[sibling_index])
+            index = index // 2  # next layer
+
+        return proof
+    
+    
 # divisione del segreto in n frammenti, ne servono t per ricostruirlo (SHAMIR)
 # geometricamente, è una figura con coefficienti an,a2,a1,a0 ed incognite xn,x2,x1 con a0 = termine noto = segreto
 def split_secret(secret_int, t, n):
@@ -138,7 +155,10 @@ def rsa_key_generation():
 # 1. cifratura del voto (AES-GCM)
 # 2. cifratura della chiave AES (RSA-OAEP)
 def hybrid_encrypt(voto, rsa_chiave_pubblica):
-    voto_da_cifrare = voto.encode('utf-8')
+    if isinstance(voto, str):
+        voto_da_cifrare = voto.encode('utf-8')
+    else:
+        voto_da_cifrare = voto
     
     # 1.
     chiave_aes = AESGCM.generate_key(bit_length=256) # 256 bit
