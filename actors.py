@@ -11,7 +11,6 @@ class IdentityProvider:
     def __init__(self):
         self.chiave_privata, self.chiave_pubblica = rsa_key_generation()
         
-        #db simulato
         self.database_utenti = {
             "vincenzo_vitolo": "vv",
             "davide_ruocco": "dr",
@@ -154,6 +153,7 @@ class Elettore:
             hashes.SHA256()
         )
 
+        # 3.
         transazione_tx = {
             "voto_json_str": voto_json_str,
             "chiave_effimera": pk_e,
