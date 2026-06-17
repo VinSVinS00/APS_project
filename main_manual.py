@@ -119,7 +119,7 @@ while ask_attack == 0:
             print(f"{e}")
         except PermissionError as e:
             print(f"[AUTH ERROR] {e}")
-    # da fixare la dimostrazione del mitm        
+            
     elif attack_type == 1:
         try:
             username = input("Username vittima: ")
@@ -252,7 +252,6 @@ for i, tx in enumerate(urna.registro_voti):
     if candidato in lista_candidati:
         lista_candidati[candidato] += 1
 
-# da fixare la stampa del vincitore
 voto_massimo = max(lista_candidati.values())
 
 if voto_massimo == 0:

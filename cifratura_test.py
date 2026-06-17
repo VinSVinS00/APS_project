@@ -5,7 +5,7 @@ chiave_privata_comm, chiave_pubblica_comm = rsa_key_generation()
 print(f"pk: {chiave_pubblica_comm}\nsk: {chiave_privata_comm}")
 
 voto_originale = "Terranova"
-print(f"Vins vota: '{voto_originale}'")
+print(f"Vitolo vota: '{voto_originale}'")
 
 print("Cifratura...")
 pacchetto_voto = hybrid_encrypt(voto_originale, chiave_pubblica_comm)
