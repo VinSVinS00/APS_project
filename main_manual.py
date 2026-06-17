@@ -9,9 +9,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 print("|| SIMULAZIONE ELEZIONI DEL CONSIGLIO STUDENTESCO ||\n")
 lista_candidati = {
     "Terranova": 0,
-    "Bodenizza": 0,
-    "Esposito": 0,
-    "Iannone": 0,
+    "Cupo": 0,
     "Azzato": 0
 }
 
@@ -74,7 +72,7 @@ except:
     print("Errore: Il numero di elettori deve essere un intero!")
 
 for i in range(num_elettori):
-    print(f"Accesso Studente {i}")
+    print(f"\nAccesso Studente n.{i+1}")
     username = input("Inserire username: ")
     password = input("Inserire password: ")
     client = Elettore(username,password)
@@ -103,7 +101,7 @@ except:
     print("Errore: inserire uno degli interi proposti!")
     sys.exit()
 
-if ask_attack == 0:
+while ask_attack == 0:
     try:
         attack_type = int(input("\nscegliere il tipo di attacco:\n0. double-vote\n1. man in the middle\n2. bypass token idp\n3. gestore malevolo\n"))
     except:
@@ -132,7 +130,7 @@ if ask_attack == 0:
             vittima = Elettore(username, password)
             pk_e = vittima.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
-            token_idp = idp.authenticate_and_sign_key(username, password, pk_e)
+            token_idp = idp.authenticate_and_sign_key(username, password, pk_e, is_test=True)
 
             tx_legittima = {
                 "chiave_effimera": pk_e,
@@ -163,12 +161,24 @@ if ask_attack == 0:
             dv_voto = input("inserire il voto: ")
             token_idp_falso = os.urandom(64)
             print(f"fake token di accesso generato")
+
             double_voter = Elettore(f"{dv_username}", f"{dv_password}")
             pk_falsa = double_voter.pk_e.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+
+            voto_cifrato = hybrid_encrypt(f"{dv_voto}", pk_commissione)
+            voto_json_str = json.dumps({
+                "voto_hex": voto_cifrato["voto_cifrato"].hex(),
+                "chiave_aes_hex": voto_cifrato["chiave_cifrata"].hex(),
+                "iv_hex": voto_cifrato["iv"].hex()
+            })
+
+            sigma_falsa = os.urandom(256)
+
             urna.get_tx_vote({
+                "voto_json_str": voto_json_str,
                 "chiave_effimera": pk_falsa,
                 "token_idp": token_idp_falso,
-                "voto": hybrid_encrypt(f"{dv_voto}", pk_commissione) 
+                "sigma_elettore": sigma_falsa
             })
         except SecurityError as e:
             print(f"{e}")
@@ -176,19 +186,29 @@ if ask_attack == 0:
             print(f"[AUTH ERROR] {e}")
 
     elif attack_type == 3:
-        root_valida = urna.merkle_tree.get_root()
-        original_registro_voti = urna.registro_voti[0]
-        urna.registro_voti[0] = "HACKED_" + urna.registro_voti[0]
-        urna.merkle_tree.leaves = urna.registro_voti
-        urna.merkle_tree.build_tree()
+        if len(urna.registro_voti) > 0:
+            root_valida = urna.merkle_tree.get_root()
+            original_voto = urna.registro_voti[0]["voto_json_str"]
+            urna.registro_voti[0]["voto_json_str"] = "HACKED_" + original_voto
 
-        if root_valida != urna.merkle_tree.get_root():
-            print(f"Manomissione rilevata! Root cambiata!!")
-            print(f"merkle root originale: {root_valida[:10]}")
-            print(f"merkle root compromessa: {urna.merkle_tree.get_root()[:10]}")
-        urna.registro_voti[0] = original_registro_voti
-        urna.merkle_tree.leaves = urna.registro_voti
-        urna.merkle_tree.build_tree()
+            urna.merkle_tree.leaves = [json.dumps(tx) for tx in urna.registro_voti]
+            urna.merkle_tree.build_tree()
+
+            if root_valida != urna.merkle_tree.get_root():
+                print(f"Manomissione rilevata! Root cambiata!!")
+                print(f"merkle root originale: {root_valida[:6]}")
+                print(f"merkle root compromessa: {urna.merkle_tree.get_root()[:6]}")
+            urna.registro_voti[0]["voto_json_str"] = original_voto
+            urna.merkle_tree.leaves = [json.dumps(tx) for tx in urna.registro_voti]
+            urna.merkle_tree.build_tree()
+        else:
+            print("nessun voto presente da manomettere (urna vuota)")
+
+    try:
+        ask_attack = int(input("\nsi desidera effettuare un nuovo attacco?\n0. si\n1. no\n"))
+    except:
+        print("Errore: inserire uno degli interi proposti!")
+        sys.exit()
 
 print("\n[5] CHIUSURA ELEZIONI E SCRUTINIO FINALE")
 
@@ -221,7 +241,7 @@ sk_commissione = load_der_private_key(
 )
 
 for i, tx in enumerate(urna.registro_voti):
-    voti = json.loads(tx)
+    voti = json.loads(tx["voto_json_str"])
     pacchetto = {
         "voto_cifrato": bytes.fromhex(voti["voto_hex"]),
         "chiave_cifrata": bytes.fromhex(voti["chiave_aes_hex"]),
@@ -244,9 +264,9 @@ else:
     ]
 
     if len(vincitore_votazioni) == 1:
-        print(f"VINCITORE ELEZIONI: {vincitore_votazioni[0]} con ({voto_massimo} voti)")
+        print(f"VINCITORE ELEZIONI: {vincitore_votazioni[0]} con voti: {voto_massimo}")
     else:
         print(f"PAREGGIO")
         print("Vincitori:")
         for vincitore in vincitore_votazioni:
-            print(f"- {vincitore} con {voto_massimo} voti")
+            print(f"- {vincitore} con voti: {voto_massimo}")

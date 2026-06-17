@@ -15,7 +15,9 @@ class IdentityProvider:
         self.database_utenti = {
             "vincenzo_vitolo": "vv",
             "davide_ruocco": "dr",
-            "paolo_vitale": "pv"
+            "paolo_vitale": "pv",
+            "mario_manganiello": "mm",
+            "bruno_castellano": "bc"
         }
         
         self.already_voted_students = []
@@ -23,15 +25,15 @@ class IdentityProvider:
     # 1. check delle credenziali
     # 2. check di double voter
     # 3. firma della pk effimera dello studente come Token di accesso al voto con la sk del idp
-    def authenticate_and_sign_key(self, username, password, chiave_pubblica_effimera):
+    def authenticate_and_sign_key(self, username, password, chiave_pubblica_effimera, is_test=False):
         
         # 1.
         if username not in self.database_utenti or self.database_utenti[username] != password:
             raise PermissionError("Accesso fallita! Username o Password errati")
         
         # 2.
-        for utente in self.already_voted_students: # i double voter vengono sgamati sullo username
-            if utente == username:
+        if not is_test:
+            if username in self.already_voted_students:
                 raise ValueError("Accesso rifiutato! Questo studente ha già votato!!")
 
         # 3.
@@ -40,8 +42,9 @@ class IdentityProvider:
             padding.PKCS1v15(),
             hashes.SHA256()
         )
-
-        self.already_voted_students.append(username)
+        if not is_test:
+            self.already_voted_students.append(username)
+            
         return idp_token
 
 

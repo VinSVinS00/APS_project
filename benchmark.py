@@ -3,11 +3,7 @@ import statistics
 import time
 from dataclasses import dataclass
 from typing import List
-
-from cryptography.hazmat.primitives.serialization import (
-    Encoding, PrivateFormat, PublicFormat, NoEncryption,
-    load_der_private_key,
-)
+from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, PublicFormat, NoEncryption, load_der_private_key
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from cryptography.hazmat.primitives import hashes as crypto_hashes
@@ -235,35 +231,29 @@ def print_report(N, reps, all_vote, avg_scrut, t_setup):
 N_VOTANTI = 100
 REPS = 3
 
+all_vote: List[VoteMetric] = []
+scrut_runs: List[ScrutinioMetric] = []
+t_setup_accumulato = 0.0
 
-def main():
-    all_vote: List[VoteMetric] = []
-    scrut_runs: List[ScrutinioMetric] = []
-    t_setup_accumulato = 0.0
+for r in range(REPS):
+    print(f"[Run {r+1}/{REPS}] Inizializzazione ambiente ed entità elettorali")
+    t = now_ns()
+    ctx = setup(N_VOTANTI)
+    t_setup_accumulato += elapsed_ms(t)
 
-    for r in range(REPS):
-        print(f"[Run {r+1}/{REPS}] Inizializzazione ambiente ed entità elettorali")
-        t = now_ns()
-        ctx = setup(N_VOTANTI)
-        t_setup_accumulato += elapsed_ms(t)
+    print(f"[Run {r+1}/{REPS}] Simulazione afflusso alle urne ({N_VOTANTI} studenti)")
+    all_vote.extend(benchmark_voto(N_VOTANTI, ctx))
 
-        print(f"[Run {r+1}/{REPS}] Simulazione afflusso alle urne ({N_VOTANTI} studenti)")
-        all_vote.extend(benchmark_voto(N_VOTANTI, ctx))
+    print(f"[Run {r+1}/{REPS}] Chiusura elezione e avvio dello scrutinio commissione")
+    scrut_runs.append(benchmark_scrutinio(ctx, N_VOTANTI))
 
-        print(f"[Run {r+1}/{REPS}] Chiusura elezione e avvio dello scrutinio commissione")
-        scrut_runs.append(benchmark_scrutinio(ctx, N_VOTANTI))
+avg_scrutinio_dict = {
+    "shamir_recover": statistics.mean([s.shamir_recover_ms for s in scrut_runs]),
+    "decrypt_sk": statistics.mean([s.decrypt_sk_commissione_ms for s in scrut_runs]),
+    "decrypt_per_voto": statistics.mean([s.hybrid_decrypt_per_voto_ms for s in scrut_runs]),
+    "decrypt_totale": statistics.mean([s.decrypt_totale_ms for s in scrut_runs]),
+    "scrutinio_totale": statistics.mean([s.scrutinio_totale_ms for s in scrut_runs])
+}
 
-    avg_scrutinio_dict = {
-        "shamir_recover": statistics.mean([s.shamir_recover_ms for s in scrut_runs]),
-        "decrypt_sk": statistics.mean([s.decrypt_sk_commissione_ms for s in scrut_runs]),
-        "decrypt_per_voto": statistics.mean([s.hybrid_decrypt_per_voto_ms for s in scrut_runs]),
-        "decrypt_totale": statistics.mean([s.decrypt_totale_ms for s in scrut_runs]),
-        "scrutinio_totale": statistics.mean([s.scrutinio_totale_ms for s in scrut_runs])
-    }
-
-    t_setup_medio = t_setup_accumulato / REPS
-    print_report(N_VOTANTI, REPS, all_vote, avg_scrutinio_dict, t_setup_medio)
-
-
-if __name__ == "__main__":
-    main()
+t_setup_medio = t_setup_accumulato / REPS
+print_report(N_VOTANTI, REPS, all_vote, avg_scrutinio_dict, t_setup_medio)
