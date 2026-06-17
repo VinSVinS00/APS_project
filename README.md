@@ -13,7 +13,7 @@ Nella fase di votazione (apertura del seggio), per eseguire l'accesso inserire q
 4. (francesco_cauteruccio,fc)
 5. (carlo_mazzocca,cm)
 
-questi studenti sono correttamente regstrati nel database locale dell'Identity Provider
+questi studenti sono correttamente registrati nel database locale dell'Identity Provider
 
 #### Note
 - main_auto.py è una versione automatica del main, progettata solo per testare tutte le funzioni (non è la versione di simulazione finale)
